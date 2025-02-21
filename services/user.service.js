@@ -10,7 +10,7 @@ class UserService {
 
   async find() {
     const client = await getConnection();
-    const rta = await client.query('SELECT * FROM User');
+    const rta = await client.query('SELECT * FROM users');
     return rta.rows;
   }
 

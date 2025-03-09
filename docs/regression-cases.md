@@ -4,7 +4,7 @@ Prepared for this change. **Not executed.** Tests, manual checks, lint and build
 
 | Case | Input or setup | Expected outcome |
 | --- | --- | --- |
-| Concurrent stock | In an isolated PostgreSQL fixture stock=1, submit two orders concurrently each requesting amount=1 | Exactly one succeeds; stock=0; losing transaction leaves no order or line item |
+| Concurrent stock | In an isolated transactional MySQL fixture matching the configured dialect stock=1, submit two orders concurrently each requesting amount=1 | Exactly one succeeds; stock=0; losing transaction leaves no order or line item |
 | Atomic rollback | Batch order with first product in stock and second product missing/insufficient | No order, line item or stock change persists |
 | Lock ordering | Concurrent batches [product 2, product 1] and [product 1, product 2] | Products are locked in ascending ID order; no negative stock |
 | Ownership | User A requests or mutates an order/customer belonging to B | 403; no changes; list excludes B resources |

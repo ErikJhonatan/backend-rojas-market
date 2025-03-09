@@ -1,16 +1,13 @@
-// Suggested code may be subject to a license. Learn more: ~LicenseLog:3321035341.
-const {config} = require('../config/config');
-const { Sequelize } = require('sequelize');
+const { Sequelize } = require('@sequelize/core');
+const { MySqlDialect } = require('@sequelize/mysql');
 
-const USER = encodeURIComponent(config.user_db);
-const PASSWORD = encodeURIComponent(config.password_db);
-
-const URI = `postgres://${USER}:${PASSWORD}@${config.host_db}:${config.port_db}/${config.name_db}`;
-
-const sequelize = new Sequelize(URI, {
-        dialect:'postgres',
-        logging: true
-    }
-);
+const sequelize = new Sequelize({
+  dialect: MySqlDialect,
+  database: process.env.DB_NAME || 'my-store-api',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 3306,
+});
 
 module.exports = sequelize;

@@ -1,7 +1,5 @@
 const { faker } = require('@faker-js/faker');
 const boom = require('@hapi/boom');
-
-const pool = require('../libs/sequalize');
 const sequelize = require('../libs/sequalize');
 
 class ProductsService {
@@ -34,9 +32,10 @@ class ProductsService {
   }
 
   async find() {
-    const query = 'SELECT * FR0M products';
-    const rta = await pool.query(query);
-    return rta.rows;
+    const query = 'SELECT * FROM product'; // Asegúrate de que está bien escrito
+    console.log("Consulta ejecutada:", query);
+    const [results] = await sequelize.query(query);
+    return results;
   }
 
   async findOne(id) {

@@ -3,7 +3,7 @@ require('dotenv').config();
 const setupModels = require('../db/models');
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME|| 'my_store_data',
+  process.env.DB_NAME|| 'store_bd',
   process.env.DB_USER || 'root',
   process.env.DB_PASSWORD || '',
   {

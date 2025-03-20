@@ -21,6 +21,12 @@ class CustomerService {
     return newCustomer;
   }
 
+  async update(id, changes) {
+    const customer = await this.findOne(id);
+    const rta = await customer.update(changes);
+    return rta;
+  }
+
   async delete(id) {
     const model = await this.findOne(id);
     await model.destroy();

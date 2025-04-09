@@ -4,7 +4,10 @@ const { models } = require('../libs/sequalize');
 class CustomerService {
   constructor () {}
   async find() {
-    const rta = await models.Customer.findAll();
+    const rta = await models.Customer.findAll({
+      include: ['user']
+    }
+    );
     return rta;
   }
 
@@ -17,7 +20,24 @@ class CustomerService {
   }
 
   async create(data) {
+    const { email, password } = data.user;
+    const userExist = await models.User.findOne({
+      where: {
+        email,
+      },
+    });
+    if (userExist) {
+      throw boom.conflict('user already exists');
+    }
+    // create user and customer
+    const newUser = await models.User.create({
+      email: data.user.email,
+      password: data.user.password,
+    });
+    const userId = newUser.id;
+    data.userId = userId;
     const newCustomer = await models.Customer.create(data);
+    newCustomer.user = newUser;
     return newCustomer;
   }
 

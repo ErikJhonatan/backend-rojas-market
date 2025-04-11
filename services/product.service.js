@@ -1,9 +1,15 @@
-const { faker } = require('@faker-js/faker');
 const boom = require('@hapi/boom');
 const { models } = require('../libs/sequalize');
 
 class ProductsService {
   async create(data) {
+    const { categoryId } = data;
+
+    const category = await models.Category.findByPk(categoryId);
+    if (!category) {
+      throw boom.notFound('category not found');
+    }
+
     const newProduct = await models.Product.create(data);
     return newProduct;
   }

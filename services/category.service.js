@@ -11,11 +11,20 @@ class CategoryService {
   }
 
   async find() {
-    return [];
+    const categories = await models.Category.findAll({
+      include: ['products'],
+    });
+    return categories;
   }
 
   async findOne(id) {
-    return { id };
+    const category = await models.Category.findByPk(id, {
+      include: ['products'],
+    });
+    if (!category) {
+      throw boom.notFound('category not found');
+    }
+    return category;
   }
 
   async update(id, changes) {

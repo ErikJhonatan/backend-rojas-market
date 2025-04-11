@@ -32,7 +32,7 @@ const ProductSchema =  {
     type: DataTypes.DATE,
     defaultValue: Sequelize.NOW
   },
-  CategoryId: {
+  categoryId: {
     field: 'category_id',
     allowNull: true,
     type: DataTypes.INTEGER,

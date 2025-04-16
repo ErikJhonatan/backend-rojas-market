@@ -22,23 +22,19 @@ class ProductsService {
     }
     const {limit, offset} = query;
     const { price } = query;
-    if (price) {
+    if (price !== undefined) {
       options.where.price = price;
     }
     const {price_min, price_max} = query;
-    if (price_min && price_max) {
+    if (price_min !== undefined && price_max !== undefined) {
       options.where.price = {
         [Op.gte]: price_min,
         [Op.lte]: price_max
       };
     }
 
-    if (limit && offset) {
-      if (limit > 0 && offset >= 0) {
-        options.limit = parseInt(limit, 10);
-        options.offset = parseInt(offset, 10);
-      }
-    }
+    if (limit !== undefined) options.limit = Number(limit);
+    if (offset !== undefined) options.offset = Number(offset);
 
     const rta = await models.Product.findAll(options);
     return rta;

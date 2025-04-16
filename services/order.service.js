@@ -1,212 +1,128 @@
 const boom = require('@hapi/boom');
+const { Op } = require('sequelize');
+const sequelize = require('../libs/sequalize');
+const { models } = sequelize;
 
-const { models } = require('./../libs/sequalize');
+const includes = [
+  { association: 'customer', include: [{ association: 'user', attributes: ['id', 'email', 'role'] }] },
+  { association: 'items', through: { attributes: ['amount'] }, include: [{ association: 'category' }] },
+];
 
 class OrderService {
-  constructor() {}
-
-  async create(data) {
-    const { customerId } = data;
-    const customer = await models.Customer.findByPk(customerId);
-    if (!customer) {
-      throw boom.notFound('Customer not found');
+  async authorizeCustomer(customerId, actor, transaction) {
+    if (!actor?.sub) throw boom.unauthorized();
+    const customer = await models.Customer.findByPk(customerId, { transaction });
+    if (!customer) throw boom.notFound('Customer not found');
+    if (actor.role !== 'admin' && Number(customer.userId) !== Number(actor.sub)) {
+      throw boom.forbidden('Customer access denied');
     }
-    const newOrder = await models.Order.create(data);
-    return newOrder;
+    return customer;
   }
 
-  async addItem(data) {
-    const { orderId, productId, amount } = data;
-
-    // Verificar que el pedido existe
-    const order = await models.Order.findByPk(orderId);
-    if (!order) {
-      throw boom.notFound('Order not found');
-    }
-
-    // Verificar que el producto existe
-    const product = await models.Product.findByPk(productId);
-    if (!product) {
-      throw boom.notFound('Product not found');
-    }
-
-    // Verificar que hay suficiente stock
-    if (product.stock < amount) {
-      throw boom.badRequest(
-        `Insufficient stock. Available: ${product.stock}, Requested: ${amount}`
-      );
-    }
-
-    const newItem = await models.OrderProduct.create(data);
-
-    // Actualizar el stock del producto
-    await product.update({
-      stock: product.stock - amount,
-    });
-
-    return newItem;
-  }
-
-  async find() {
-    const orders = await models.Order.findAll({
-      include: [
-        {
-          association: 'customer',
-          include: ['user'],
-        },
-        {
-          association: 'items',
-          through: {
-            attributes: ['amount'], // Incluir la cantidad del producto en el pedido
-          },
-          include: [
-            {
-              association: 'category',
-            },
-          ],
-        },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
-    return orders;
-  }
-
-  async findOne(id) {
-    const order = await models.Order.findByPk(id, {
-      include: [
-        {
-          association: 'customer',
-          include: ['user'],
-        },
-        {
-          association: 'items',
-          through: {
-            attributes: ['amount'], // Incluir la cantidad del producto en el pedido
-          },
-          include: [
-            {
-              association: 'category',
-            },
-          ],
-        },
-      ],
-    });
-
-    if (!order) {
-      throw boom.notFound('Order not found');
-    }
-
+  async lockedOrder(id, actor, transaction) {
+    const order = await models.Order.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!order) throw boom.notFound('Order not found');
+    await this.authorizeCustomer(order.customerId, actor, transaction);
     return order;
   }
 
-  async update(id, changes) {
-    const order = await this.findOne(id);
-    const updatedOrder = await order.update(changes);
-    return updatedOrder;
-  }
-
-  async delete(id) {
-    const order = await this.findOne(id);
-
-    // Restaurar el stock de los productos antes de eliminar el pedido
-    const orderItems = await models.OrderProduct.findAll({
-      where: { orderId: id },
-      include: [
-        {
-          association: 'product',
-        },
-      ],
+  async create(data, actor) {
+    return sequelize.transaction(async transaction => {
+      await this.authorizeCustomer(data.customerId, actor, transaction);
+      return models.Order.create({ customerId: data.customerId }, { transaction });
     });
-
-    // Restaurar stock de cada producto
-    for (const item of orderItems) {
-      await item.product.update({
-        stock: item.product.stock + item.amount,
-      });
-    }
-
-    await order.destroy();
-    return { id };
   }
 
-  async createWithItems(orderData) {
-    const { customerId, items } = orderData;
-
-    // Verificar que el cliente existe
-    const customer = await models.Customer.findByPk(customerId);
-    if (!customer) {
-      throw boom.notFound('Customer not found');
+  async addItem(data, actor, existingTransaction) {
+    if (!Number.isSafeInteger(data.amount) || data.amount <= 0) throw boom.badRequest('Invalid amount');
+    if (!existingTransaction) {
+      return sequelize.transaction(transaction => this.addItem(data, actor, transaction));
     }
-
-    // Verificar stock de todos los productos antes de crear el pedido
-    for (const item of items) {
-      const product = await models.Product.findByPk(item.productId);
-      if (!product) {
-        throw boom.notFound(`Product with id ${item.productId} not found`);
-      }
-      if (product.stock < item.amount) {
-        throw boom.badRequest(
-          `Insufficient stock for product ${product.name}. Available: ${product.stock}, Requested: ${item.amount}`
-        );
-      }
+    const transaction = existingTransaction;
+    const { orderId, productId, amount } = data;
+    await this.lockedOrder(orderId, actor, transaction);
+    const product = await models.Product.findByPk(productId, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!product) throw boom.notFound('Product not found');
+    if (product.stock < amount) throw boom.badRequest('Insufficient stock');
+    let item = await models.OrderProduct.findOne({ where: { orderId, productId }, transaction });
+    if (item) {
+      item = await item.update({ amount: item.amount + amount }, { transaction });
+    } else {
+      item = await models.OrderProduct.create({ orderId, productId, amount }, { transaction });
     }
-
-    // Crear el pedido
-    const newOrder = await models.Order.create({ customerId });
-
-    // Agregar todos los productos al pedido
-    for (const item of items) {
-      await this.addItem({
-        orderId: newOrder.id,
-        productId: item.productId,
-        amount: item.amount,
-      });
-    }
-
-    // Retornar el pedido completo con sus productos
-    return await this.findOne(newOrder.id);
+    await product.update({ stock: product.stock - amount }, { transaction });
+    return item;
   }
 
-  async getOrderStats() {
+  async find(actor) {
+    if (!actor?.sub) throw boom.unauthorized();
+    return models.Order.findAll({
+      include: [
+        { ...includes[0], ...(actor.role === 'admin' ? {} : { where: { userId: actor.sub }, required: true }) },
+        includes[1],
+      ], order: [['createdAt', 'DESC']],
+    });
+  }
+
+  async findOne(id, actor, transaction) {
+    const order = await models.Order.findByPk(id, { include: includes, transaction });
+    if (!order) throw boom.notFound('Order not found');
+    await this.authorizeCustomer(order.customerId, actor, transaction);
+    return order;
+  }
+
+  async update(id, changes, actor) {
+    return sequelize.transaction(async transaction => {
+      const order = await this.lockedOrder(id, actor, transaction);
+      await this.authorizeCustomer(changes.customerId ?? order.customerId, actor, transaction);
+      return order.update({ customerId: changes.customerId ?? order.customerId }, { transaction });
+    });
+  }
+
+  async delete(id, actor) {
+    return sequelize.transaction(async transaction => {
+      const order = await this.lockedOrder(id, actor, transaction);
+      const items = await models.OrderProduct.findAll({ where: { orderId: id }, order: [['productId', 'ASC']], transaction });
+      for (const item of items) {
+        const product = await models.Product.findByPk(item.productId, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!product) throw boom.notFound('Product not found');
+        await product.update({ stock: product.stock + item.amount }, { transaction });
+      }
+      await models.OrderProduct.destroy({ where: { orderId: id }, transaction });
+      await order.destroy({ transaction });
+      return { id };
+    });
+  }
+
+  async createWithItems({ customerId, items }, actor) {
+    if (!Array.isArray(items) || !items.length) throw boom.badRequest('Items required');
+    return sequelize.transaction(async transaction => {
+      await this.authorizeCustomer(customerId, actor, transaction);
+      const order = await models.Order.create({ customerId }, { transaction });
+      for (const item of [...items].sort((a, b) => a.productId - b.productId)) {
+        await this.addItem({ orderId: order.id, productId: item.productId, amount: item.amount }, actor, transaction);
+      }
+      return this.findOne(order.id, actor, transaction);
+    });
+  }
+
+  async getOrderStats(actor) {
+    if (actor?.role !== 'admin') throw boom.forbidden();
     const totalOrders = await models.Order.count();
-    const todayOrders = await models.Order.count({
-      where: {
-        createdAt: {
-          [models.Sequelize.Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      },
-    });
-
-    return {
-      totalOrders,
-      todayOrders,
-    };
+    const todayOrders = await models.Order.count({ where: { createdAt: { [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)) } } });
+    return { totalOrders, todayOrders };
   }
 
-  async removeItem(orderId, productId) {
-    const orderItem = await models.OrderProduct.findOne({
-      where: { orderId, productId },
-      include: [
-        {
-          association: 'product',
-        },
-      ],
+  async removeItem(orderId, productId, actor) {
+    return sequelize.transaction(async transaction => {
+      await this.lockedOrder(orderId, actor, transaction);
+      const product = await models.Product.findByPk(productId, { transaction, lock: transaction.LOCK.UPDATE });
+      const item = await models.OrderProduct.findOne({ where: { orderId, productId }, transaction });
+      if (!product || !item) throw boom.notFound('Order item not found');
+      await product.update({ stock: product.stock + item.amount }, { transaction });
+      await item.destroy({ transaction });
+      return { message: 'Item removed successfully' };
     });
-
-    if (!orderItem) {
-      throw boom.notFound('Order item not found');
-    }
-
-    // Restaurar el stock del producto
-    await orderItem.product.update({
-      stock: orderItem.product.stock + orderItem.amount,
-    });
-
-    // Eliminar el item del pedido
-    await orderItem.destroy();
-
-    return { message: 'Item removed successfully' };
   }
 }
-
 module.exports = OrderService;

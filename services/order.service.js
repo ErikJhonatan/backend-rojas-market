@@ -11,7 +11,10 @@ const includes = [
 class OrderService {
   async authorizeCustomer(customerId, actor, transaction) {
     if (!actor?.sub) throw boom.unauthorized();
-    const customer = await models.Customer.findByPk(customerId, { transaction });
+    const customer = await models.Customer.findByPk(customerId, {
+      transaction,
+      ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}),
+    });
     if (!customer) throw boom.notFound('Customer not found');
     if (actor.role !== 'admin' && Number(customer.userId) !== Number(actor.sub)) {
       throw boom.forbidden('Customer access denied');

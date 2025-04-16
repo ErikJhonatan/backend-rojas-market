@@ -1,5 +1,6 @@
 const boom = require('@hapi/boom');
-const { models } = require('../libs/sequalize');
+const sequelize = require('../libs/sequalize');
+const { models } = sequelize;
 const bcrypt = require('bcrypt');
 class CustomerService {
   constructor () {}
@@ -12,8 +13,11 @@ class CustomerService {
     return rta;
   }
 
-  async findOne(id) {
-    const customer = await models.Customer.findByPk(id);
+  async findOne(id, transaction) {
+    const customer = await models.Customer.findByPk(id, {
+      transaction,
+      ...(transaction ? {lock: transaction.LOCK.UPDATE} : {}),
+    });
     if (!customer) {
       throw boom.notFound('customer not found');
     }
@@ -32,20 +36,23 @@ class CustomerService {
   }
 
   async update(id, changes, actor) {
-    const customer = await this.findOne(id);
-    if (actor.role !== 'admin' && Number(customer.userId) !== Number(actor.sub)) throw boom.forbidden();
-    const data = {...changes};
-    if (actor.role !== 'admin') delete data.userId;
-    const rta = await customer.update(data);
-    return rta;
+    return sequelize.transaction(async transaction => {
+      const customer = await this.findOne(id, transaction);
+      if (actor.role !== 'admin' && Number(customer.userId) !== Number(actor.sub)) throw boom.forbidden();
+      const data = {...changes};
+      if (actor.role !== 'admin') delete data.userId;
+      return customer.update(data, {transaction});
+    });
   }
 
   async delete(id, actor) {
-    const model = await this.findOne(id);
-    if (actor.role !== 'admin' && Number(model.userId) !== Number(actor.sub)) throw boom.forbidden();
-    if (await models.Order.count({where: {customerId: id}})) throw boom.conflict('Customer has orders');
-    await model.destroy();
-    return { rta: true };
+    return sequelize.transaction(async transaction => {
+      const model = await this.findOne(id, transaction);
+      if (actor.role !== 'admin' && Number(model.userId) !== Number(actor.sub)) throw boom.forbidden();
+      if (await models.Order.count({where: {customerId: id}, transaction})) throw boom.conflict('Customer has orders');
+      await model.destroy({transaction});
+      return { rta: true };
+    });
   }
 }
 

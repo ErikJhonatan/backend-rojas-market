@@ -12,3 +12,10 @@ Prepared for this change. **Not executed.** Tests, manual checks, lint and build
 | Authentication | Unknown email, wrong password, token for deleted user or changed database role | Authentication fails once, or uses current database role; no fallthrough |
 | Sensitive data | List customers/users/orders with included user | Password is absent |
 | Restoration | Remove an order item then delete its order | Each reserved unit is restored exactly once inside its transaction |
+
+## Additional cases (not executed)
+
+| Case | Input or setup | Expected outcome |
+| --- | --- | --- |
+| Customer concurrency | Create an order while deleting or reassigning its customer | Customer row is locked; no orphan order or authorization against stale ownership |
+| Zero filter values | Query offset=0 and price_min=0 with a positive maximum | Pagination and range filtering apply |

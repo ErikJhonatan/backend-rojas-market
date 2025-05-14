@@ -22,6 +22,7 @@ class UserService {
 
   async find() {
     const users = await models.User.findAll({
+      attributes: { exclude: ['password'] },
       include: ['customer']
     });
     return users;
@@ -35,7 +36,7 @@ class UserService {
   }
 
   async findOne(id) {
-    const user = await models.User.findByPk(id);
+    const user = await models.User.findByPk(id, { attributes: { exclude: ['password'] } });
     if (!user) {
       throw boom.notFound('user not found');
     }
@@ -43,13 +44,18 @@ class UserService {
   }
 
   async update(id, changes) {
-    const user = await models.User.findByPk(id);
-    const rta = await user.update(changes);
+    const user = await models.User.findByPk(id, { attributes: { exclude: ['password'] } });
+    if (!user) throw boom.notFound('user not found');
+    const data = { ...changes };
+    if (data.password) data.password = await bcrypt.hash(data.password, 10);
+    const rta = await user.update(data);
+    delete rta.dataValues.password;
     return rta;
   }
 
   async delete(id) {
-    const user = await models.User.findByPk(id);
+    const user = await models.User.findByPk(id, { attributes: { exclude: ['password'] } });
+    if (!user) throw boom.notFound('user not found');
     await user.destroy();
     return { id };
   }

@@ -8,6 +8,10 @@ class UserService {
 
   async create(data) {
     const hash = await bcrypt.hash(data.password, 10);
+    const user = await this.findByEmail(data.email);
+    if (user) {
+      throw boom.conflict('email already exists');
+    }
     const newUser = await models.User.create({
       ...data,
       password: hash

@@ -35,11 +35,8 @@ const queryProductSchema = Joi.object({
   limit: limit,
   offset: offset,
   price: price,
-  price_min: price_min,
-  price_max: price_max.when('price_min', {
-    is: Joi.number().integer().min(10),
-    then: Joi.required()
-  })
+  price_min: price_min.default(0),
+  price_max: price_max.min(Joi.ref('price_min')),
 })
 
 module.exports = { createProductSchema, updateProductSchema, getProductSchema, queryProductSchema };

@@ -24,6 +24,10 @@ const CustomerSchema =  {
     allowNull: true,
     type: DataTypes.STRING,
   },
+  address: {
+    allowNull: true,
+    type: DataTypes.STRING,
+  },
   createdAt: {
     allowNull: false,
     type: DataTypes.DATE,

@@ -16,7 +16,8 @@ router.post(
         role: user.role
       };
       const token = jwt.sign(payload, config.jwtSecret, {
-        expiresIn: '15m'
+        // 2h
+        expiresIn: '2h'
       });
       res.status(200).json({
         user,
@@ -27,5 +28,17 @@ router.post(
     }
   }
 )
+
+router.get(
+  '/verify',
+  passport.authenticate('jwt', { session: false }),
+  async (req, res, next) => {
+    try {
+      res.status(200).json({ user: req.user });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 module.exports = router;

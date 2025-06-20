@@ -31,7 +31,7 @@ class ProductsService {
         [Op.gte]: price_min,
         [Op.lte]: price_max
       };
-    } 
+    }
 
     if (limit && offset) {
       if (limit > 0 && offset >= 0) {

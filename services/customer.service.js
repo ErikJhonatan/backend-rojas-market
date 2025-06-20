@@ -5,7 +5,7 @@ class CustomerService {
   constructor () {}
   async find() {
     const rta = await models.Customer.findAll({
-      include: ['user']
+      include: ['user', 'orders']
     }
     );
     return rta;
@@ -20,29 +20,10 @@ class CustomerService {
   }
 
   async create(data) {
-    const { email, password } = data.user;
-    const hash = await bcrypt.hash(password, 10);
 
-    const userExist = await models.User.findOne({
-      where: {
-        email,
-      },
-    });
-    if (userExist) {
-      throw boom.conflict('user already exists');
-    }
-    // create user and customer
-    const newUser = await models.User.create({
-      email: data.user.email,
-      password: hash
-    });
-    const userId = newUser.id;
-    data.userId = userId;
     const newCustomer = await models.Customer.create(data, {
       include: ['user']
     });
-    newCustomer.user = newUser;
-    delete newCustomer.user.dataValues.password;
     return newCustomer;
   }
 

@@ -8,7 +8,9 @@ const { createProductSchema, updateProductSchema, getProductSchema, queryProduct
 const router = express.Router();
 const service = new ProductsService();
 
-router.get('/', validatorHandler(queryProductSchema, 'query'),
+router.get('/',
+  passport.authenticate('jwt', { session: false }),
+  validatorHandler(queryProductSchema, 'query'),
 async (req, res, next) => {
   try {
     const products = await service.find(req.query);
@@ -19,6 +21,7 @@ async (req, res, next) => {
 });
 
 router.get('/:id',
+  passport.authenticate('jwt', { session: false }),
   validatorHandler(getProductSchema, 'params'),
   async (req, res, next) => {
     try {

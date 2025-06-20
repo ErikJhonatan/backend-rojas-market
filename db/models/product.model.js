@@ -26,6 +26,22 @@ const ProductSchema =  {
     allowNull: false,
     type: DataTypes.STRING,
   },
+  code: {
+    allowNull: false,
+    type: DataTypes.STRING,
+    unique: true,
+  },
+  stock: {
+    allowNull: false,
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  stockMin: {
+    field: 'stock_min',
+    allowNull: false,
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   createdAt: {
     allowNull: false,
     field: 'created_at',

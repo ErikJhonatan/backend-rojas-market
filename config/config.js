@@ -12,7 +12,8 @@ const config = {
   port_db: process.env.PORT_DB || 5432,
   dialect: 'mysql',
   apiKey: process.env.API_KEY || 'default_api_key',
-  jwtSecret: process.env.JWT_SECRET
+  jwtSecret: process.env.JWT_SECRET,
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 };
 
 module.exports = { config };
